@@ -34,6 +34,15 @@ done
 echo "Deleting Ingress resources..."
 kubectl delete ingress --all --all-namespaces --timeout=30s || true
 
+# Delete lingering Security Groups created by AWS Load Balancer Controller
+echo "Checking for lingering Security Groups (k8s-elb-*)..."
+aws ec2 describe-security-groups --filters Name=vpc-id,Values=$(aws ec2 describe-vpcs --filters Name=tag:Name,Values=*-${CLUSTER_NAME}-* --query 'Vpcs[0].VpcId' --output text) --query 'SecurityGroups[?starts_with(GroupName, `k8s-elb-`)].GroupId' --output text | tr '\t' '\n' | while read sg_id; do
+  if [ ! -z "$sg_id" ]; then
+    echo "Deleting Security Group $sg_id..."
+    aws ec2 delete-security-group --group-id "$sg_id" || true
+  fi
+done
+
 # Optional: Delete PVCs if you are using dynamic provisioning for EBS volumes
 # echo "Deleting PVCs..."
 # kubectl delete pvc --all --all-namespaces --timeout=30s || true
